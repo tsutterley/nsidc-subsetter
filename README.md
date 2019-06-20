@@ -39,6 +39,7 @@ python nsidc_subset_altimetry.py -T 2009-01-01T00:00:00,2009-12-31T23:59:59 \
 	-U X, --user=X: username for NASA Earthdata Login  
 	--version: version of the dataset to use  
 	-B X, --bbox=X: Bounding box (lonmin,latmin,lonmax,latmax)  
+	-P X, --polygon=X: Georeferenced file containing a set of polygons   
 	-T X, --time=X: Time range (comma-separated start and end)  
 	-F X, --format=X: Output data format (TABULAR_ASCII, NetCDF4)  
 	-M X, --mode=X: Local permissions mode of the files processed  
@@ -46,7 +47,12 @@ python nsidc_subset_altimetry.py -T 2009-01-01T00:00:00,2009-12-31T23:59:59 \
 	-Z, --unzip: Unzip dataset from NSIDC subsetting service  
 
 #### Dependencies
-[future: Compatibility layer between Python 2 and Python 3](http://python-future.org/)
+- [numpy: Scientific Computing Tools For Python](http://www.numpy.org)  
+- [shapely: PostGIS-ish operations outside a database context for Python](http://toblerity.org/shapely/index.html)  
+- [pyshp: Python read/write support for ESRI Shapefile format](https://github.com/GeospatialPython/pyshp)  
+- [geojson: Functions for encoding and decoding GeoJSON formatted data](https://pypi.org/project/geojson/)  
+- [lxml: processing XML and HTML in Python](https://pypi.python.org/pypi/lxml)  
+- [future: Compatibility layer between Python 2 and Python 3](http://python-future.org/)  
 
 #### Download
 The program homepage is:   

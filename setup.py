@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
 	name='nsidc-subsetter',
-	version='1.0.0.0',
+	version='1.0.0.1',
 	description='Program for using the NSIDC subsetter api for retrieving NASA Operation IceBridge, ICESat and ICESat-2 data',
 	url='https://github.com/tsutterley/nsidc-subsetter',
 	author='Tyler Sutterley',
@@ -17,5 +17,5 @@ setup(
 	],
 	keywords='NSIDC Earthdata IceBridge ICESat ICESat-2 subsetting',
 	packages=find_packages(),
-	install_requires=['future'],
+	install_requires=['numpy','future','lxml','pyshp','geojson','shapely'],
 )

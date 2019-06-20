@@ -9,7 +9,7 @@
 *.pyc
 *.m~
 *.m~~
- 
+
 # Packages #
 ############
 *.7z
@@ -20,7 +20,7 @@
 *.rar
 *.tar
 *.zip
- 
+
 # Logs and databases #
 ######################
 *.log
@@ -30,6 +30,7 @@
 *.gmtdefaults4
 .RData
 .Rhistory
+__pycache__
 
 # OS generated files #
 ######################
@@ -72,3 +73,8 @@ Thumbs.db
 *.mtc0
 *.sw*
 *.hidden
+
+# Jupyter Checkpoints #
+#######################
+.ipynb_checkpoints
+Untitled.ipynb
