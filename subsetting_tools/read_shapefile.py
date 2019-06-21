@@ -17,21 +17,19 @@ PYTHON DEPENDENCIES:
 	numpy: Scientific Computing Tools For Python
 		http://www.numpy.org
 		http://www.scipy.org/NumPy_for_Matlab_Users
-	pyshp: Python read/write support for ESRI Shapefile format
-		https://github.com/GeospatialPython/pyshp
+	fiona: Python wrapper for vector data access functions from the OGR library
+		https://fiona.readthedocs.io/en/latest/manual.html
 	shapely: PostGIS-ish operations outside a database context for Python
 		http://toblerity.org/shapely/index.html
 
 UPDATE HISTORY:
+	Updated 06/2019: using fiona for consistency between read functions
 	Written 06/2019
 """
 from __future__ import print_function
 
 import os
-import re
-import io
-import zipfile
-import shapefile
+import fiona
 import numpy as np
 from shapely.geometry import Polygon, MultiPolygon
 
@@ -40,28 +38,17 @@ def read_shapefile(input_file, ZIP=False):
 	#-- read input zipfile containing shapefiles
 	if ZIP:
 		#-- read the compressed shapefile and extract entities
-		zs = zipfile.ZipFile(os.path.expanduser(input_file))
-		dbf,prj,shp,shx = [io.BytesIO(zs.read(s)) for s in sorted(zs.namelist())
-			if re.match('(.*?)\.(dbf|prj|shp|shx)$',s)]
-		shape_input = shapefile.Reader(dbf=dbf, prj=prj, shp=shp, shx=shx,
-			encodingErrors='ignore')
-		#-- close the zipfile
-		zs.close()
+		shape = fiona.open('zip://{0}'.format(os.path.expanduser(input_file)))
 	else:
 		#-- read the shapefile and extract entities
-		shape_input = shapefile.Reader(os.path.expanduser(input_file))
-
-	#-- extract attributes and entities
-	shape_entities = shape_input.shapes()
-	shape_attributes = shape_input.records()
-	shape_field_names = [f[0] for f in shape_input.fields[1:]]
+		shape = fiona.open(os.path.expanduser(input_file))
 
 	#-- list of polygons
 	poly_list = []
 	#-- for each entity
-	for i,ent in enumerate(shape_entities):
+	for i,ent in enumerate(shape.values):
 		#-- extract coordinates for entity
-		points = np.array(ent.points)
+		points = np.squeeze(ent['geometry']['coordinates'])
 		poly_obj = Polygon(list(zip(points[:,0], points[:,1])))
 			#-- Valid Polygon cannot have overlapping exterior or interior rings
 		if (not poly_obj.is_valid):

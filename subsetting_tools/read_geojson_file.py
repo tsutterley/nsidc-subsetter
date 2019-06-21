@@ -14,35 +14,38 @@ PYTHON DEPENDENCIES:
 	numpy: Scientific Computing Tools For Python
 		http://www.numpy.org
 		http://www.scipy.org/NumPy_for_Matlab_Users
-	geojson: Functions for encoding and decoding GeoJSON formatted data
-		https://pypi.org/project/geojson/
+	fiona: Python wrapper for vector data access functions from the OGR library
+		https://fiona.readthedocs.io/en/latest/manual.html
+	geopandas: Python tools for geographic data
+		http://geopandas.readthedocs.io/
 	shapely: PostGIS-ish operations outside a database context for Python
 		http://toblerity.org/shapely/index.html
 
 UPDATE HISTORY:
+	Updated 06/2019: using geopandas for consistency between read functions
 	Written 06/2019
 """
 from __future__ import print_function
 
 import os
-import geojson
+import geopandas
 import numpy as np
 from shapely.geometry import Polygon, MultiPolygon
 
 #-- PURPOSE: read GeoJSON (.json, .geojson) files
 def read_geojson_file(input_file):
 	#-- read the GeoJSON file
-	with open(os.path.expanduser(input_file),'r') as f:
-		gj = geojson.load(f)
+	gj = geopandas.read_file(f)
 
 	#-- list of polygons
 	poly_list = []
 	#-- find features of interest
-	f = [f for f in gj.features if f.geometry.type in ('LineString','Polygon')]
+	geometries = ('LineString','Polygon')
+	f = [f for f in gj.iterfeatures() if f['geometry']['type'] in geometries]
 	#-- for each line string or polygon feature
 	for feature in f:
 		#-- extract coordinates for feature
-		x,y = np.transpose(feature.geometry.coordinates)
+		x,y = np.transpose(feature['geometry']['coordinates'])
 		poly_obj = Polygon(list(zip(x,y)))
 		#-- Valid Polygon cannot have overlapping exterior or interior rings
 		if (not poly_obj.is_valid):

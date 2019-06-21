@@ -56,19 +56,21 @@ PYTHON DEPENDENCIES:
 	lxml: Pythonic XML and HTML processing library using libxml2/libxslt
 		http://lxml.de/
 		https://github.com/lxml/lxml
-	pyshp: Python read/write support for ESRI Shapefile format
-		https://github.com/GeospatialPython/pyshp
-	geojson: Functions for encoding and decoding GeoJSON formatted data
-		https://pypi.org/project/geojson/
+	fiona: Python wrapper for vector data access functions from the OGR library
+		https://fiona.readthedocs.io/en/latest/manual.html
+	geopandas: Python tools for geographic data
+		http://geopandas.readthedocs.io/
 	shapely: PostGIS-ish operations outside a database context for Python
 		http://toblerity.org/shapely/index.html
 
 PROGRAM DEPENDENCIES:
 	read_shapefile.py: reads ESRI shapefiles for spatial coordinates
+	read_kml_file.py: reads kml/kmz files for spatial coordinates
 	read_geojson_file.py: reads GeoJSON files for spatial coordinates
 
 UPDATE HISTORY:
 	Updated 06/2019: added option polygon to subset using a georeferenced file
+		added read functions for kml/kmz georeferenced files
 	Written 01/2019
 """
 from __future__ import print_function
@@ -89,6 +91,7 @@ import lxml.etree
 import shapely.geometry
 import dateutil.parser
 from subsetting_tools.read_shapefile import read_shapefile
+from subsetting_tools.read_kml_file import read_kml_file
 from subsetting_tools.read_geojson_file import read_geojson_file
 if sys.version_info[0] == 2:
 	from cookielib import CookieJar
@@ -171,6 +174,10 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, USER='', PASSWORD='',
 			m = read_shapefile(os.path.expanduser(POLYGON))
 		elif (fileExtension == '.zip'):
 			m = read_shapefile(os.path.expanduser(POLYGON), ZIP=True)
+		elif (fileExtension == '.kml'):
+			m = read_kml_file(os.path.expanduser(POLYGON))
+		elif (fileExtension == '.kmz'):
+			m = read_kmz_file(os.path.expanduser(POLYGON), KMZ=True)
 		elif fileExtension in ('.json','.geojson'):
 			m = read_geojson_file(os.path.expanduser(POLYGON))
 		#-- calculate the bounds of the MultiPolygon object
@@ -373,6 +380,9 @@ def main():
 		USER = builtins.input('Username for {0}: '.format(HOST))
 	#-- enter password securely from command-line
 	PASSWORD = getpass.getpass('Password for {0}@{1}: '.format(USER,HOST))
+
+	#-- recursively create directory if presently non-existent
+	os.makedirs(DIRECTORY) if not os.access(DIRECTORY, os.F_OK) else None
 
 	#-- check internet connection before attempting to run program
 	if check_connection():
