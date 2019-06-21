@@ -49,8 +49,8 @@ python nsidc_subset_altimetry.py -T 2009-01-01T00:00:00,2009-12-31T23:59:59 \
 #### Dependencies
 - [numpy: Scientific Computing Tools For Python](http://www.numpy.org)  
 - [shapely: PostGIS-ish operations outside a database context for Python](http://toblerity.org/shapely/index.html)  
-- [pyshp: Python read/write support for ESRI Shapefile format](https://github.com/GeospatialPython/pyshp)  
-- [geojson: Functions for encoding and decoding GeoJSON formatted data](https://pypi.org/project/geojson/)  
+- [fiona: Python wrapper for vector data access functions from the OGR library](https://fiona.readthedocs.io/en/latest/manual.html)  
+- [geopandas: Python tools for geographic data](http://geopandas.readthedocs.io/)  
 - [lxml: processing XML and HTML in Python](https://pypi.python.org/pypi/lxml)  
 - [future: Compatibility layer between Python 2 and Python 3](http://python-future.org/)  
 
