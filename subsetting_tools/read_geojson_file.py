@@ -20,14 +20,18 @@ PYTHON DEPENDENCIES:
 		http://geopandas.readthedocs.io/
 	shapely: PostGIS-ish operations outside a database context for Python
 		http://toblerity.org/shapely/index.html
+	pyproj: Python interface to PROJ library
+		https://pypi.org/project/pyproj/
 
 UPDATE HISTORY:
 	Updated 06/2019: using geopandas for consistency between read functions
+		convert projection to EPGS:4326 before creating polygons
 	Written 06/2019
 """
 from __future__ import print_function
 
 import os
+import pyproj
 import geopandas
 import numpy as np
 from shapely.geometry import Polygon, MultiPolygon
@@ -36,6 +40,10 @@ from shapely.geometry import Polygon, MultiPolygon
 def read_geojson_file(input_file):
 	#-- read the GeoJSON file
 	gj = geopandas.read_file(f)
+
+	#-- convert projection to EPSG:4236
+	proj1 = pyproj.Proj("+init={0}".format(gj.crs['init']))
+	proj2 = pyproj.Proj("+init=EPSG:{0:d}".format(4326))
 
 	#-- list of polygons
 	poly_list = []
@@ -46,7 +54,10 @@ def read_geojson_file(input_file):
 	for feature in f:
 		#-- extract coordinates for feature
 		x,y = np.transpose(feature['geometry']['coordinates'])
-		poly_obj = Polygon(list(zip(x,y)))
+		#-- convert points to latitude/longitude
+		lon,lat = pyproj.transform(proj1, proj2, x, y)
+		#-- create shapely polygon
+		poly_obj = Polygon(list(zip(lon, lat)))
 		#-- Valid Polygon cannot have overlapping exterior or interior rings
 		if (not poly_obj.is_valid):
 			poly_obj = poly_obj.buffer(0)

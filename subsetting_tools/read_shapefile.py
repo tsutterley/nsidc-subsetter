@@ -21,9 +21,12 @@ PYTHON DEPENDENCIES:
 		https://fiona.readthedocs.io/en/latest/manual.html
 	shapely: PostGIS-ish operations outside a database context for Python
 		http://toblerity.org/shapely/index.html
+	pyproj: Python interface to PROJ library
+		https://pypi.org/project/pyproj/
 
 UPDATE HISTORY:
 	Updated 06/2019: using fiona for consistency between read functions
+		convert projection to EPGS:4326 before creating polygons
 	Written 06/2019
 """
 from __future__ import print_function
@@ -31,6 +34,7 @@ from __future__ import print_function
 import os
 import fiona
 import numpy as np
+import pyproj
 from shapely.geometry import Polygon, MultiPolygon
 
 #-- PURPOSE: read shapefiles
@@ -41,19 +45,27 @@ def read_shapefile(input_file, ZIP=False):
 		shape = fiona.open('zip://{0}'.format(os.path.expanduser(input_file)))
 	else:
 		#-- read the shapefile and extract entities
-		shape = fiona.open(os.path.expanduser(input_file))
+		shape = fiona.open(os.path.expanduser(input_file),'r')
+
+	#-- convert projection to EPSG:4236
+	proj1 = pyproj.Proj("+init={0}".format(shape.crs['init']))
+	proj2 = pyproj.Proj("+init=EPSG:{0:d}".format(4326))
 
 	#-- list of polygons
 	poly_list = []
 	#-- for each entity
-	for i,ent in enumerate(shape.values):
+	for i,ent in enumerate(shape.values()):
 		#-- extract coordinates for entity
-		points = np.squeeze(ent['geometry']['coordinates'])
-		poly_obj = Polygon(list(zip(points[:,0], points[:,1])))
+		for coords in ent['geometry']['coordinates']:
+			#-- convert points to latitude/longitude
+			x,y = np.transpose(coords)
+			lon,lat = pyproj.transform(proj1, proj2, x, y)
+			#-- create shapely polygon
+			poly_obj = Polygon(list(zip(lon, lat)))
 			#-- Valid Polygon cannot have overlapping exterior or interior rings
-		if (not poly_obj.is_valid):
-			poly_obj = poly_obj.buffer(0)
-		poly_list.append(poly_obj)
+			if (not poly_obj.is_valid):
+				poly_obj = poly_obj.buffer(0)
+			poly_list.append(poly_obj)
 	#-- create shapely multipolygon object
 	mpoly_obj = MultiPolygon(poly_list)
 	#-- return the polygon object

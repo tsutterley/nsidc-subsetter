@@ -23,8 +23,11 @@ PYTHON DEPENDENCIES:
 		http://geopandas.readthedocs.io/
 	shapely: PostGIS-ish operations outside a database context for Python
 		http://toblerity.org/shapely/index.html
+	pyproj: Python interface to PROJ library
+		https://pypi.org/project/pyproj/
 
 UPDATE HISTORY:
+	Updated 06/2019: convert projection to EPGS:4326 before creating polygons
 	Written 06/2019
 """
 from __future__ import print_function
@@ -33,6 +36,7 @@ import os
 import io
 import zipfile
 import fiona
+import pyproj
 import geopandas
 import numpy as np
 #-- enable kml driver for geopandas
@@ -49,6 +53,10 @@ def read_kml_file(input_file, KMZ=False):
 	else:
 		kml_input = geopandas.read_file(os.path.expanduser(input_file))
 
+	#-- convert projection to EPSG:4236
+	proj1 = pyproj.Proj("+init={0}".format(kml_input.crs['init']))
+	proj2 = pyproj.Proj("+init=EPSG:{0:d}".format(4326))
+
 	#-- list of polygons
 	poly_list = []
 	#-- find feature within kml file
@@ -57,8 +65,10 @@ def read_kml_file(input_file, KMZ=False):
 		coords = np.squeeze(feature['geometry']['coordinates'])
 		#-- if coordinate set is a polygon
 		if (coords.ndim == 2):
+			#-- convert points to latitude/longitude
+			lon,lat = pyproj.transform(proj1, proj2, coords[:,0], coords[:,1])
 			#-- create polygon from coordinate set
-			poly_obj = Polygon(list(zip(coords[:,0],coords[:,1])))
+			poly_obj = Polygon(list(zip(lon, lat)))
 			#-- Valid Polygon cannot have overlapping exterior or interior rings
 			if (not poly_obj.is_valid):
 				poly_obj = poly_obj.buffer(0)
