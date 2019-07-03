@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 u"""
 read_geojson_file.py
-Written by Tyler Sutterley (06/2019)
+Written by Tyler Sutterley (07/2019)
 Reads polygons from GeoJSON files
 
 INPUTS:
@@ -10,6 +10,9 @@ INPUTS:
 OUTPUT:
 	shapely multipolygon object of input file
 
+OPTIONS:
+	VARIABLES: reduce to a specific set of identifiers
+	
 PYTHON DEPENDENCIES:
 	numpy: Scientific Computing Tools For Python
 		http://www.numpy.org
@@ -24,6 +27,7 @@ PYTHON DEPENDENCIES:
 		https://pypi.org/project/pyproj/
 
 UPDATE HISTORY:
+	Updated 07/2019: added option to reduce to specific VARIABLES within file
 	Updated 06/2019: using geopandas for consistency between read functions
 		convert projection to EPGS:4326 before creating polygons
 	Written 06/2019
@@ -37,9 +41,9 @@ import numpy as np
 from shapely.geometry import Polygon, MultiPolygon
 
 #-- PURPOSE: read GeoJSON (.json, .geojson) files
-def read_geojson_file(input_file):
+def read_geojson_file(input_file, ID=None):
 	#-- read the GeoJSON file
-	gj = geopandas.read_file(f)
+	gj = geopandas.read_file(input_file)
 
 	#-- convert projection to EPSG:4236
 	proj1 = pyproj.Proj("+init={0}".format(gj.crs['init']))
@@ -50,8 +54,12 @@ def read_geojson_file(input_file):
 	#-- find features of interest
 	geometries = ('LineString','Polygon')
 	f = [f for f in gj.iterfeatures() if f['geometry']['type'] in geometries]
+	#-- reduce to variables of interest if specified
+	f = [ft for ft in f if ft['id'] in VARIABLES] if VARIABLES else f
+
 	#-- for each line string or polygon feature
 	for feature in f:
+		print(feature)
 		#-- extract coordinates for feature
 		x,y = np.transpose(feature['geometry']['coordinates'])
 		#-- convert points to latitude/longitude

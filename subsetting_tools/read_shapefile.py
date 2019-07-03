@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 u"""
 read_shapefile.py
-Written by Tyler Sutterley (06/2019)
+Written by Tyler Sutterley (07/2019)
 Reads polygons from ESRI shapefiles
 
 INPUTS:
@@ -12,6 +12,7 @@ OUTPUT:
 
 OPTIONS:
 	ZIP: input file is compressed
+	VARIABLES: reduce to a specific set of identifiers
 
 PYTHON DEPENDENCIES:
 	numpy: Scientific Computing Tools For Python
@@ -25,6 +26,7 @@ PYTHON DEPENDENCIES:
 		https://pypi.org/project/pyproj/
 
 UPDATE HISTORY:
+	Updated 07/2019: added option to reduce to specific VARIABLES within file
 	Updated 06/2019: using fiona for consistency between read functions
 		convert projection to EPGS:4326 before creating polygons
 	Written 06/2019
@@ -38,7 +40,7 @@ import pyproj
 from shapely.geometry import Polygon, MultiPolygon
 
 #-- PURPOSE: read shapefiles
-def read_shapefile(input_file, ZIP=False):
+def read_shapefile(input_file, ZIP=False, VARIABLES=None):
 	#-- read input zipfile containing shapefiles
 	if ZIP:
 		#-- read the compressed shapefile and extract entities
@@ -51,10 +53,16 @@ def read_shapefile(input_file, ZIP=False):
 	proj1 = pyproj.Proj("+init={0}".format(shape.crs['init']))
 	proj2 = pyproj.Proj("+init=EPSG:{0:d}".format(4326))
 
+	#-- find features of interest
+	geometries = ('LineString','Polygon')
+	f = [f for f in shape.values() if f['geometry']['type'] in geometries]
+	#-- reduce to variables of interest if specified
+	f = [ft for ft in f if ft['id'] in VARIABLES] if VARIABLES else f
+
 	#-- list of polygons
 	poly_list = []
 	#-- for each entity
-	for i,ent in enumerate(shape.values()):
+	for i,ent in enumerate(f):
 		#-- extract coordinates for entity
 		for coords in ent['geometry']['coordinates']:
 			#-- convert points to latitude/longitude

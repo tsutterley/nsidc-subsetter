@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 u"""
 nsidc_subset_altimetry.py
-Written by Tyler Sutterley (06/2019)
+Written by Tyler Sutterley (07/2019)
 
 Program to acquire subset altimetry datafiles from the NSIDC API:
 https://wiki.earthdata.nasa.gov/display/EL/How+To+Access+Data+With+Python
@@ -64,11 +64,14 @@ PYTHON DEPENDENCIES:
 		http://toblerity.org/shapely/index.html
 
 PROGRAM DEPENDENCIES:
+	base_directory.py: sets the user-specific working data directory
+		specified by the $PYTHONDATA environmental variable set in .pythonrc
 	read_shapefile.py: reads ESRI shapefiles for spatial coordinates
 	read_kml_file.py: reads kml/kmz files for spatial coordinates
 	read_geojson_file.py: reads GeoJSON files for spatial coordinates
 
 UPDATE HISTORY:
+	Updated 07/2019: can use specific identifiers within a georeferenced file
 	Updated 06/2019: added option polygon to subset using a georeferenced file
 		added read functions for kml/kmz georeferenced files
 	Written 01/2019
@@ -169,17 +172,22 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, USER='', PASSWORD='',
 	elif POLYGON:
 		#-- read shapefile or kml/kmz file
 		fileBasename,fileExtension = os.path.splitext(POLYGON)
+		#-- extract file name and subsetter indices lists
+		match_object = re.match('(.*?)(\[(.*?)\])?$',POLYGON)
+		FILE = os.path.expanduser(match_object.group(1))
+		#-- read specific variables of interest
+		v = match_object.group(3).split(',') if match_object.group(2) else None
 		#-- get MultiPolygon object from input spatial file
 		if (fileExtension == '.shp'):
-			m = read_shapefile(os.path.expanduser(POLYGON))
+			m = read_shapefile(os.path.expanduser(FILE), VARIABLES=v)
 		elif (fileExtension == '.zip'):
-			m = read_shapefile(os.path.expanduser(POLYGON), ZIP=True)
+			m = read_shapefile(os.path.expanduser(FILE), VARIABLES=v, ZIP=True)
 		elif (fileExtension == '.kml'):
-			m = read_kml_file(os.path.expanduser(POLYGON))
+			m = read_kml_file(os.path.expanduser(FILE), VARIABLES=v)
 		elif (fileExtension == '.kmz'):
-			m = read_kmz_file(os.path.expanduser(POLYGON), KMZ=True)
+			m = read_kmz_file(os.path.expanduser(FILE), VARIABLES=v, KMZ=True)
 		elif fileExtension in ('.json','.geojson'):
-			m = read_geojson_file(os.path.expanduser(POLYGON))
+			m = read_geojson_file(os.path.expanduser(FILE), VARIABLES=v)
 		#-- calculate the bounds of the MultiPolygon object
 		bounds_flag = '&bounding_box={0:f},{1:f},{2:f},{3:f}'.format(*m.bounds)
 		#-- calculate the convex hull of the MultiPolygon object for subsetting
