@@ -12,7 +12,7 @@ OUTPUT:
 
 OPTIONS:
 	VARIABLES: reduce to a specific set of identifiers
-	
+
 PYTHON DEPENDENCIES:
 	numpy: Scientific Computing Tools For Python
 		http://www.numpy.org
@@ -41,7 +41,7 @@ import numpy as np
 from shapely.geometry import Polygon, MultiPolygon
 
 #-- PURPOSE: read GeoJSON (.json, .geojson) files
-def read_geojson_file(input_file, ID=None):
+def read_geojson_file(input_file, VARIABLES=None):
 	#-- read the GeoJSON file
 	gj = geopandas.read_file(input_file)
 
