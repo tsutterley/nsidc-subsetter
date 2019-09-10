@@ -46,8 +46,8 @@ python nsidc_subset_altimetry.py -T 2009-01-01T00:00:00,2009-12-31T23:59:59 \
 	-V, --verbose: Verbose output of processing  
 	-Z, --unzip: Unzip dataset from NSIDC subsetting service  
 
-#### Geoferenced File Readers  
-Can include a geoferenced file using the `--polygon` option.  
+#### Georeferenced File Readers  
+Can include a georeferenced file using the `--polygon` option.  
 Presently subsets to the convex hull of the internal polygons.  
  - `read_geojson_file.py`: Reads polygons from GeoJSON files  
  - `read_kml_file.py`: Reads polygons from keyhole markup language (.kml or .kmz) files  

@@ -11,6 +11,7 @@ OUTPUT:
 	shapely multipolygon object of input file
 
 OPTIONS:
+	EPSG: projection identifier for output coordinates
 	VARIABLES: reduce to a specific set of identifiers
 
 PYTHON DEPENDENCIES:
@@ -27,6 +28,7 @@ PYTHON DEPENDENCIES:
 		https://pypi.org/project/pyproj/
 
 UPDATE HISTORY:
+	Updated 09/2019: made output coordinate system an option (EPSG)
 	Updated 07/2019: added option to reduce to specific VARIABLES within file
 	Updated 06/2019: using geopandas for consistency between read functions
 		convert projection to EPGS:4326 before creating polygons
@@ -41,13 +43,13 @@ import numpy as np
 from shapely.geometry import Polygon, MultiPolygon
 
 #-- PURPOSE: read GeoJSON (.json, .geojson) files
-def read_geojson_file(input_file, VARIABLES=None):
+def read_geojson_file(input_file, EPSG=4326, VARIABLES=None):
 	#-- read the GeoJSON file
 	gj = geopandas.read_file(input_file)
 
-	#-- convert projection to EPSG:4236
+	#-- convert projection to EPSG
 	proj1 = pyproj.Proj("+init={0}".format(gj.crs['init']))
-	proj2 = pyproj.Proj("+init=EPSG:{0:d}".format(4326))
+	proj2 = pyproj.Proj("+init=EPSG:{0:d}".format(EPSG))
 
 	#-- list of polygons
 	poly_list = []

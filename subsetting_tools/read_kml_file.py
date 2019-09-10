@@ -11,6 +11,7 @@ OUTPUT:
 	shapely multipolygon object of input file
 
 OPTIONS:
+	EPSG: projection identifier for output coordinates
 	KMZ: input file is compressed
 	VARIABLES: reduce to a specific set of identifiers
 
@@ -30,6 +31,7 @@ PYTHON DEPENDENCIES:
 		https://pypi.org/project/pyproj/
 
 UPDATE HISTORY:
+	Updated 09/2019: made output coordinate system an option (EPSG)
 	Updated 07/2019: added option to reduce to specific VARIABLES within file
 	Updated 06/2019: convert projection to EPGS:4326 before creating polygons
 		only read LineString and Polygon features from the kml/kmz file
@@ -51,7 +53,7 @@ fiona.drvsupport.supported_drivers['LIBKML'] = 'rw'
 from shapely.geometry import Polygon, MultiPolygon
 
 #-- PURPOSE: read keyhole markup language (.kml) files
-def read_kml_file(input_file, KMZ=False, VARIABLES=None):
+def read_kml_file(input_file, EPSG=4326, KMZ=False, VARIABLES=None):
 	#-- if input file is compressed
 	if KMZ:
 		#-- decompress and parse KMZ file
@@ -65,9 +67,9 @@ def read_kml_file(input_file, KMZ=False, VARIABLES=None):
 	else:
 		kml = geopandas.read_file(os.path.expanduser(input_file))
 
-	#-- convert projection to EPSG:4236
+	#-- convert projection to EPSG
 	proj1 = pyproj.Proj("+init={0}".format(kml.crs['init']))
-	proj2 = pyproj.Proj("+init=EPSG:{0:d}".format(4326))
+	proj2 = pyproj.Proj("+init=EPSG:{0:d}".format(EPSG))
 
 	#-- list of polygons
 	poly_list = []

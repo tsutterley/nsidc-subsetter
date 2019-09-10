@@ -1,11 +1,11 @@
 from setuptools import setup, find_packages
 setup(
 	name='nsidc-subsetter',
-	version='1.0.0.4',
+	version='1.0.0.5',
 	description='Program for using the NSIDC subsetter api for retrieving NASA Operation IceBridge, ICESat and ICESat-2 data',
 	url='https://github.com/tsutterley/nsidc-subsetter',
 	author='Tyler Sutterley',
-	author_email='tyler.c.sutterley@nasa.gov',
+	author_email='tsutterl@uw.edu',
 	license='MIT',
 	classifiers=[
 		'Development Status :: 3 - Alpha',

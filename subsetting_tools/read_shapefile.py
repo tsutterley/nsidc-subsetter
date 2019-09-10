@@ -11,6 +11,7 @@ OUTPUT:
 	shapely multipolygon object of input file
 
 OPTIONS:
+	EPSG: projection identifier for output coordinates
 	ZIP: input file is compressed
 	VARIABLES: reduce to a specific set of identifiers
 
@@ -26,6 +27,7 @@ PYTHON DEPENDENCIES:
 		https://pypi.org/project/pyproj/
 
 UPDATE HISTORY:
+	Updated 09/2019: made output coordinate system an option (EPSG)
 	Updated 07/2019: added option to reduce to specific VARIABLES within file
 	Updated 06/2019: using fiona for consistency between read functions
 		convert projection to EPGS:4326 before creating polygons
@@ -40,7 +42,7 @@ import pyproj
 from shapely.geometry import Polygon, MultiPolygon
 
 #-- PURPOSE: read shapefiles
-def read_shapefile(input_file, ZIP=False, VARIABLES=None):
+def read_shapefile(input_file, EPSG=4326, ZIP=False, VARIABLES=None):
 	#-- read input zipfile containing shapefiles
 	if ZIP:
 		#-- read the compressed shapefile and extract entities
@@ -49,9 +51,9 @@ def read_shapefile(input_file, ZIP=False, VARIABLES=None):
 		#-- read the shapefile and extract entities
 		shape = fiona.open(os.path.expanduser(input_file),'r')
 
-	#-- convert projection to EPSG:4236
+	#-- convert projection to EPSG
 	proj1 = pyproj.Proj("+init={0}".format(shape.crs['init']))
-	proj2 = pyproj.Proj("+init=EPSG:{0:d}".format(4326))
+	proj2 = pyproj.Proj("+init=EPSG:{0:d}".format(EPSG))
 
 	#-- find features of interest
 	geometries = ('LineString','Polygon')
