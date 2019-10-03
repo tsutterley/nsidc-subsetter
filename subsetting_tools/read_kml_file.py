@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 u"""
 read_kml_file.py
-Written by Tyler Sutterley (07/2019)
+Written by Tyler Sutterley (09/2019)
 Reads polygons from keyhole markup language (.kml or .kmz) files
 
 INPUTS:
@@ -33,7 +33,7 @@ PYTHON DEPENDENCIES:
 UPDATE HISTORY:
 	Updated 09/2019: made output coordinate system an option (EPSG)
 	Updated 07/2019: added option to reduce to specific VARIABLES within file
-	Updated 06/2019: convert projection to EPGS:4326 before creating polygons
+	Updated 06/2019: convert projection to EPSG:4326 before creating polygons
 		only read LineString and Polygon features from the kml/kmz file
 	Written 06/2019
 """

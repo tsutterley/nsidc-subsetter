@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 u"""
 read_geojson_file.py
-Written by Tyler Sutterley (07/2019)
+Written by Tyler Sutterley (09/2019)
 Reads polygons from GeoJSON files
 
 INPUTS:
@@ -31,7 +31,7 @@ UPDATE HISTORY:
 	Updated 09/2019: made output coordinate system an option (EPSG)
 	Updated 07/2019: added option to reduce to specific VARIABLES within file
 	Updated 06/2019: using geopandas for consistency between read functions
-		convert projection to EPGS:4326 before creating polygons
+		convert projection to EPSG:4326 before creating polygons
 	Written 06/2019
 """
 from __future__ import print_function
@@ -61,7 +61,6 @@ def read_geojson_file(input_file, EPSG=4326, VARIABLES=None):
 
 	#-- for each line string or polygon feature
 	for feature in f:
-		print(feature)
 		#-- extract coordinates for feature
 		x,y = np.transpose(feature['geometry']['coordinates'])
 		#-- convert points to latitude/longitude

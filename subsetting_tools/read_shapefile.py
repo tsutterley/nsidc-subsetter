@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 u"""
 read_shapefile.py
-Written by Tyler Sutterley (07/2019)
+Written by Tyler Sutterley (09/2019)
 Reads polygons from ESRI shapefiles
 
 INPUTS:
@@ -30,7 +30,7 @@ UPDATE HISTORY:
 	Updated 09/2019: made output coordinate system an option (EPSG)
 	Updated 07/2019: added option to reduce to specific VARIABLES within file
 	Updated 06/2019: using fiona for consistency between read functions
-		convert projection to EPGS:4326 before creating polygons
+		convert projection to EPSG:4326 before creating polygons
 	Written 06/2019
 """
 from __future__ import print_function

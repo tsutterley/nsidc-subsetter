@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 u"""
 nsidc_subset_altimetry.py
-Written by Tyler Sutterley (07/2019)
+Written by Tyler Sutterley (09/2019)
 
 Program to acquire subset altimetry datafiles from the NSIDC API:
 https://wiki.earthdata.nasa.gov/display/EL/How+To+Access+Data+With+Python
@@ -64,13 +64,12 @@ PYTHON DEPENDENCIES:
 		http://toblerity.org/shapely/index.html
 
 PROGRAM DEPENDENCIES:
-	base_directory.py: sets the user-specific working data directory
-		specified by the $PYTHONDATA environmental variable set in .pythonrc
 	read_shapefile.py: reads ESRI shapefiles for spatial coordinates
 	read_kml_file.py: reads kml/kmz files for spatial coordinates
 	read_geojson_file.py: reads GeoJSON files for spatial coordinates
 
 UPDATE HISTORY:
+	Updated 09/2019: added ssl context to urlopen headers
 	Updated 07/2019: can use specific identifiers within a georeferenced file
 	Updated 06/2019: added option polygon to subset using a georeferenced file
 		added read functions for kml/kmz georeferenced files
@@ -82,6 +81,7 @@ import sys
 import os
 import io
 import re
+import ssl
 import time
 import getopt
 import shutil
@@ -107,7 +107,8 @@ else:
 def check_connection():
 	#-- attempt to connect to https host for NSIDC
 	try:
-		urllib2.urlopen('https://n5eil01u.ecs.nsidc.org/',timeout=1)
+		HOST = 'https://n5eil01u.ecs.nsidc.org/'
+		urllib2.urlopen(HOST,timeout=20,context=ssl.SSLContext())
 	except urllib2.URLError:
 		raise RuntimeError('Check internet connection')
 	else:
@@ -133,8 +134,7 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, USER='', PASSWORD='',
 	#-- create "opener" (OpenerDirector instance)
 	opener = urllib2.build_opener(
 		urllib2.HTTPBasicAuthHandler(password_mgr),
-	    #urllib2.HTTPHandler(debuglevel=1),  # Uncomment these two lines to see
-	    #urllib2.HTTPSHandler(debuglevel=1), # details of the requests/responses
+		urllib2.HTTPSHandler(context=ssl.SSLContext()),
 		urllib2.HTTPCookieProcessor(cookie_jar))
 	#-- add Authorization header to opener
 	authorization_header = "Basic {0}".format(base64_string.decode())
@@ -399,6 +399,7 @@ def main():
 		for p in arglist:
 			if p not in P.keys():
 				raise IOError('Incorrect Data Product Entered ({0})'.format(p))
+			#-- run program for product
 			nsidc_subset_altimetry(DIRECTORY, p, VERSION, USER=USER,
 				PASSWORD=PASSWORD, BBOX=BBOX, TIME=TIME, FORMAT=FORMAT,
 				POLYGON=POLYGON, MODE=MODE, VERBOSE=VERBOSE,
