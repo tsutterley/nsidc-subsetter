@@ -1,6 +1,9 @@
 nsidc-subsetter
 ===============
 
+[![Language](https://img.shields.io/badge/python-v3.7-green.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/tsutterley/nsidc-subsetter/blob/master/LICENSE)
+
 #### Program for using the NSIDC subsetter api for retrieving NASA Operation IceBridge, ICESat and ICESat-2 data
 
 - [NASA Earthdata Login system](https://urs.earthdata.nasa.gov)  
