@@ -40,6 +40,7 @@ python nsidc_subset_altimetry.py -T 2009-01-01T00:00:00,2009-12-31T23:59:59 \
 	--help: list the command line options  
 	-D X, --directory=X: working data directory  
 	-U X, --user=X: username for NASA Earthdata Login  
+    -N X, --netrc=X: Path to .netrc file for authentication  
 	--version: version of the dataset to use  
 	-B X, --bbox=X: Bounding box (lonmin,latmin,lonmax,latmax)  
 	-P X, --polygon=X: Georeferenced file containing a set of polygons   

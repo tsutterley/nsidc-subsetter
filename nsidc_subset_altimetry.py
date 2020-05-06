@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 u"""
 nsidc_subset_altimetry.py
-Written by Tyler Sutterley (03/2020)
+Written by Tyler Sutterley (05/2020)
 
 Program to acquire subset altimetry datafiles from the NSIDC API:
 https://wiki.earthdata.nasa.gov/display/EL/How+To+Access+Data+With+Python
@@ -43,6 +43,7 @@ COMMAND LINE OPTIONS:
     --help: list the command line options
     -D X, --directory=X: working data directory
     -U X, --user=X: username for NASA Earthdata Login
+    -N X, --netrc=X: path to .netrc file for alternative authentication
     --version: version of the dataset to use
     -B X, --bbox=X: Bounding box (lonmin,latmin,lonmax,latmax)
     -P X, --polygon=X: Georeferenced file containing a set of polygons
@@ -69,6 +70,7 @@ PROGRAM DEPENDENCIES:
     read_geojson_file.py: reads GeoJSON files for spatial coordinates
 
 UPDATE HISTORY:
+    Updated 05/2020: added option netrc to use alternative authentication
     Updated 03/2020: simplify polygon extension if statements
         raise exception if polygon file extension is not presently available
     Updated 09/2019: added ssl context to urlopen headers
@@ -85,6 +87,7 @@ import io
 import re
 import ssl
 import time
+import netrc
 import getopt
 import shutil
 import base64
@@ -304,6 +307,7 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, USER='', PASSWORD='',
 def usage():
     print('\nHelp: {0}'.format(os.path.basename(sys.argv[0])))
     print(' -U X, --user=X\t\tUsername for NASA Earthdata Login')
+    print(' -N X, --netrc=X\t\tPath to .netrc file for authentication')
     print(' -D X, --directory=X\tWorking data directory')
     print(' --version\t\tVersion of the dataset to use')
     print(' -B X, --bbox=X\t\tBounding box (lonmin,latmin,lonmax,latmax)')
@@ -317,9 +321,9 @@ def usage():
 #-- Main program that calls nsidc_subset_altimetry()
 def main():
     #-- Read the system arguments listed after the program
-    short_options = 'hU:D:B:P:T:F:M:VZ'
+    short_options = 'hU:N:D:B:P:T:F:M:VZ'
     long_options = ['help','version=','bbox=','polygon=','time=','format=',
-        'user=','directory=','mode=','verbose','unzip']
+        'user=','netrc=','directory=','mode=','verbose','unzip']
     optlist,arglist = getopt.getopt(sys.argv[1:],short_options,long_options)
 
     #-- command line parameters
@@ -329,6 +333,7 @@ def main():
     TIME = None
     FORMAT = None
     USER = ''
+    NETRC = None
     #-- working data directory
     DIRECTORY = os.getcwd()
     #-- permissions mode of the local directories and files (number in octal)
@@ -341,6 +346,8 @@ def main():
             sys.exit()
         elif opt in ("-U","--user"):
             USER = arg
+        elif opt in ("-N","--netrc"):
+            NETRC = os.path.expanduser(arg)
         elif opt in ("-D","--directory"):
             DIRECTORY = os.path.expanduser(arg)
         elif opt in ("--version"):
@@ -388,11 +395,17 @@ def main():
 
     #-- NASA Earthdata hostname
     HOST = 'urs.earthdata.nasa.gov'
-    #-- check that NASA Earthdata credentials were entered
-    if not USER:
+    #-- get authentication
+    if not USER and not NETRC:
+        #-- check that NASA Earthdata credentials were entered
         USER = builtins.input('Username for {0}: '.format(HOST))
-    #-- enter password securely from command-line
-    PASSWORD = getpass.getpass('Password for {0}@{1}: '.format(USER,HOST))
+        #-- enter password securely from command-line
+        PASSWORD = getpass.getpass('Password for {0}@{1}: '.format(USER,HOST))
+    elif NETRC:
+        USER,LOGIN,PASSWORD = netrc.netrc(NETRC).authenticators(HOST)
+    else:
+        #-- enter password securely from command-line
+        PASSWORD = getpass.getpass('Password for {0}@{1}: '.format(USER,HOST))
 
     #-- recursively create directory if presently non-existent
     os.makedirs(DIRECTORY) if not os.access(DIRECTORY, os.F_OK) else None
