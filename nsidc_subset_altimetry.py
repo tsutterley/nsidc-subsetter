@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 u"""
 nsidc_subset_altimetry.py
-Written by Tyler Sutterley (05/2020)
+Written by Tyler Sutterley (10/2020)
 
 Program to acquire subset altimetry datafiles from the NSIDC API:
 https://wiki.earthdata.nasa.gov/display/EL/How+To+Access+Data+With+Python
@@ -41,21 +41,21 @@ INPUTS:
 
 COMMAND LINE OPTIONS:
     --help: list the command line options
-    -D X, --directory=X: working data directory
-    -U X, --user=X: username for NASA Earthdata Login
-    -N X, --netrc=X: path to .netrc file for alternative authentication
+    -D X, --directory X: working data directory
+    -U X, --user X: username for NASA Earthdata Login
+    -N X, --netrc X: path to .netrc file for alternative authentication
     --version: version of the dataset to use
-    -B X, --bbox=X: Bounding box (lonmin,latmin,lonmax,latmax)
-    -P X, --polygon=X: Georeferenced file containing a set of polygons
-    -T X, --time=X: Time range (comma-separated start and end)
-    -F X, --format=X: Output data format (TABULAR_ASCII, NetCDF4)
-    -M X, --mode=X: Local permissions mode of the files processed
+    -B X, --bbox X: Bounding box (lonmin,latmin,lonmax,latmax)
+    -P X, --polygon X: Georeferenced file containing a set of polygons
+    -T X, --time X: Time range (comma-separated start and end)
+    -F X, --format X: Output data format (TABULAR_ASCII, NetCDF4)
+    -M X, --mode X: Local permissions mode of the files processed
     -V, --verbose: Verbose output of processing
     -Z, --unzip: Unzip dataset from NSIDC subsetting service
 
 PYTHON DEPENDENCIES:
     lxml: Pythonic XML and HTML processing library using libxml2/libxslt
-        http://lxml.de/
+        https://lxml.de/
         https://github.com/lxml/lxml
     fiona: Python wrapper for vector data access functions from the OGR library
         https://fiona.readthedocs.io/en/latest/manual.html
@@ -65,11 +65,13 @@ PYTHON DEPENDENCIES:
         http://toblerity.org/shapely/index.html
 
 PROGRAM DEPENDENCIES:
-    read_shapefile.py: reads ESRI shapefiles for spatial coordinates
-    read_kml_file.py: reads kml/kmz files for spatial coordinates
-    read_geojson_file.py: reads GeoJSON files for spatial coordinates
+    polygon.py: Reads polygons from GeoJSON, kml/kmz or ESRI shapefile files
+    utilities.py: Download and management utilities for syncing files
 
 UPDATE HISTORY:
+    Updated 10/2020: using argparse to set parameters from the command line
+        use utilities to build https opener for CMR requests and NSIDC download
+        use combined polygon module to read georeferenced files
     Updated 05/2020: added option netrc to use alternative authentication
     Updated 03/2020: simplify polygon extension if statements
         raise exception if polygon file extension is not presently available
@@ -85,70 +87,23 @@ import sys
 import os
 import io
 import re
-import ssl
 import time
 import netrc
-import getopt
 import shutil
-import base64
 import getpass
 import zipfile
 import builtins
+import argparse
 import posixpath
 import lxml.etree
 import shapely.geometry
 import dateutil.parser
-from subsetting_tools.read_shapefile import read_shapefile
-from subsetting_tools.read_kml_file import read_kml_file
-from subsetting_tools.read_geojson_file import read_geojson_file
-if sys.version_info[0] == 2:
-    from cookielib import CookieJar
-    import urllib2
-else:
-    from http.cookiejar import CookieJar
-    import urllib.request as urllib2
-
-#-- PURPOSE: check internet connection
-def check_connection():
-    #-- attempt to connect to https host for NSIDC
-    try:
-        HOST = 'https://n5eil01u.ecs.nsidc.org/'
-        urllib2.urlopen(HOST,timeout=20,context=ssl.SSLContext())
-    except urllib2.URLError:
-        raise RuntimeError('Check internet connection')
-    else:
-        return True
+import subsetting_tools.polygon
+import subsetting_tools.utilities
 
 #-- PURPOSE: program to acquire subsetted NSIDC data
-def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, USER='', PASSWORD='',
-    BBOX=None, POLYGON=None, TIME=None, FORMAT=None, MODE=None, CLOBBER=False,
-    VERBOSE=False, UNZIP=False):
-
-    #-- https://docs.python.org/3/howto/urllib2.html#id5
-    #-- create a password manager
-    password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-    #-- Add the username and password for NASA Earthdata Login system
-    password_mgr.add_password(None, 'https://urs.earthdata.nasa.gov',
-        USER, PASSWORD)
-    #-- Encode username/password for request authorization headers
-    base64_string = base64.b64encode('{0}:{1}'.format(USER,PASSWORD).encode())
-    #-- Create cookie jar for storing cookies. This is used to store and return
-    #-- the session cookie given to use by the data server (otherwise will just
-    #-- keep sending us back to Earthdata Login to authenticate).
-    cookie_jar = CookieJar()
-    #-- create "opener" (OpenerDirector instance)
-    opener = urllib2.build_opener(
-        urllib2.HTTPBasicAuthHandler(password_mgr),
-        urllib2.HTTPSHandler(context=ssl.SSLContext()),
-        urllib2.HTTPCookieProcessor(cookie_jar))
-    #-- add Authorization header to opener
-    authorization_header = "Basic {0}".format(base64_string.decode())
-    opener.addheaders = [("Authorization", authorization_header)]
-    #-- Now all calls to urllib2.urlopen use our opener.
-    urllib2.install_opener(opener)
-    #-- All calls to urllib2.urlopen will now use handler
-    #-- Make sure not to include the protocol in with the URL, or
-    #-- HTTPPasswordMgrWithDefaultRealm will be confused.
+def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, BBOX=None, POLYGON=None,
+    TIME=None, FORMAT=None, VERBOSE=False, UNZIP=False, MODE=None):
 
     #-- compile lxml xml parser
     parser = lxml.etree.XMLParser(recover=True, remove_blank_text=True)
@@ -178,29 +133,29 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, USER='', PASSWORD='',
         #-- read shapefile or kml/kmz file
         fileBasename,fileExtension = os.path.splitext(POLYGON)
         #-- extract file name and subsetter indices lists
-        match_object = re.match('(.*?)(\[(.*?)\])?$',POLYGON)
-        FILE = os.path.expanduser(match_object.group(1))
+        match_object = re.match(r'(.*?)(\[(.*?)\])?$',POLYGON)
+        f = os.path.expanduser(match_object.group(1))
         #-- read specific variables of interest
         v = match_object.group(3).split(',') if match_object.group(2) else None
         #-- get MultiPolygon object from input spatial file
         if fileExtension in ('.shp','.zip'):
             #-- if reading a shapefile or a zipped directory with a shapefile
             ZIP = (fileExtension == '.zip')
-            m = read_shapefile(os.path.expanduser(FILE), VARIABLES=v, ZIP=ZIP)
+            mp=subsetting_tools.polygon().from_shapefile(f,variables=v,zip=ZIP)
         elif fileExtension in ('.kml','.kmz'):
-            #-- if reading a keyhole markup language (can be compressed)
+            #-- if reading a keyhole markup language (can be compressed kmz)
             KMZ = (fileExtension == '.kmz')
-            m = read_kml_file(os.path.expanduser(FILE), VARIABLES=v, KMZ=KMZ)
+            mp=subsetting_tools.polygon().from_kml(f,variables=v,kmz=KMZ)
         elif fileExtension in ('.json','.geojson'):
             #-- if reading a GeoJSON file
-            m = read_geojson_file(os.path.expanduser(FILE), VARIABLES=v)
+            mp=subsetting_tools.polygon().from_geojson(f,variables=v)
         else:
             raise IOError('Unlisted polygon type ({0})'.format(fileExtension))
         #-- calculate the bounds of the MultiPolygon object
-        bounds_flag = '&bounding_box={0:f},{1:f},{2:f},{3:f}'.format(*m.bounds)
+        bounds_flag = '&bounding_box={0:f},{1:f},{2:f},{3:f}'.format(*mp.bounds)
         #-- calculate the convex hull of the MultiPolygon object for subsetting
         #-- the NSIDC api requires polygons to be in counter-clockwise order
-        X,Y = shapely.geometry.polygon.orient(m.convex_hull,sign=1).exterior.xy
+        X,Y = shapely.geometry.polygon.orient(mp.convex_hull,sign=1).exterior.xy
         #-- coordinate order for polygon flag is lon1,lat1,lon2,lat2,...
         polygon_flag = ','.join(['{0:f},{1:f}'.format(x,y) for x,y in zip(X,Y)])
         spatial_flag = '&polygon={0}'.format(polygon_flag)
@@ -227,26 +182,27 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, USER='', PASSWORD='',
             temporal_flag,size_flag,num_flag])
         #-- Create and submit request. There are a wide range of exceptions
         #-- that can be thrown here, including HTTPError and URLError.
-        request = urllib2.Request(remote_url)
-        tree = lxml.etree.parse(urllib2.urlopen(request, timeout=20), parser)
-        root = tree.getroot()
+        request=subsetting_tools.utilities.urllib2.Request(remote_url)
+        response=subsetting_tools.utilities.urllib2.urlopen(request, timeout=20)
+        tree=lxml.etree.parse(response, parser)
+        root=tree.getroot()
         #-- total number of hits for subset (not just on page)
         hits = int(tree.find('hits').text)
         #-- extract references on page
         references = [i for i in tree.iter('reference',root.nsmap)]
         #-- check flag
-        FLAG = (len(references) > 0)
+        FLAG = bool(len(references))
         for reference in references:
             name = reference.find('name',root.nsmap).text
             id = reference.find('id',root.nsmap).text
             location = reference.find('location',root.nsmap).text
             revision_id = reference.find('revision-id',root.nsmap).text
             #-- read cmd location to get filename
-            req = urllib2.Request(location)
+            request=subsetting_tools.utilities.urllib2.Request(location)
+            resp=subsetting_tools.utilities.urllib2.urlopen(request,timeout=20)
             #-- parse cmd location url
-            tr = lxml.etree.parse(urllib2.urlopen(req, timeout=20), parser)
-            r = tr.getroot()
-            f,=tr.xpath('.//gmd:fileIdentifier/gmx:FileName',namespaces=r.nsmap)
+            tr = lxml.etree.parse(resp, parser)
+            f, = tr.xpath('.//DataGranule/ProducerGranuleId')
             #-- create list of id, cmd location, revision and file
             granules[name] = [id,location,revision_id,f.text]
         #-- add to page number if valid page
@@ -268,8 +224,8 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, USER='', PASSWORD='',
         if UNZIP:
             #-- Create and submit request. There are a wide range of exceptions
             #-- that can be thrown here, including HTTPError and URLError.
-            request = urllib2.Request(remote_url)
-            response = urllib2.urlopen(request)
+            request = subsetting_tools.utilities.urllib2.Request(remote_url)
+            response = subsetting_tools.utilities.urllib2.urlopen(request)
             #-- read to BytesIO object
             fid = io.BytesIO(response.read())
             #-- use zipfile to extract contents from bytes
@@ -278,6 +234,7 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, USER='', PASSWORD='',
             print('{0} -->\n'.format(remote_url)) if VERBOSE else None
             #-- extract each member and convert permissions to MODE
             for member in remote_data.filelist:
+                member.filename = os.path.basename(member.filename)
                 local_file = os.path.join(filepath,subdir,member.filename)
                 print('\t{0}\n'.format(local_file)) if VERBOSE else None
                 remote_data.extract(member, path=os.path.join(filepath,subdir))
@@ -291,8 +248,8 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, USER='', PASSWORD='',
             print('{0} -->\n\t{1}\n'.format(*args)) if VERBOSE else None
             #-- Create and submit request. There are a wide range of exceptions
             #-- that can be thrown here, including HTTPError and URLError.
-            request = urllib2.Request(remote_url)
-            response = urllib2.urlopen(request)
+            request = subsetting_tools.utilities.urllib2.Request(remote_url)
+            response = subsetting_tools.utilities.urllib2.urlopen(request)
             #-- copy contents to local file using chunked transfer encoding
             #-- transfer should work properly with ascii and binary data formats
             CHUNK = 16 * 1024
@@ -303,69 +260,13 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, USER='', PASSWORD='',
             #-- convert permissions to MODE
             os.chmod(local_zip, MODE)
 
-#-- PURPOSE: help module to describe the optional input parameters
-def usage():
-    print('\nHelp: {0}'.format(os.path.basename(sys.argv[0])))
-    print(' -U X, --user=X\t\tUsername for NASA Earthdata Login')
-    print(' -N X, --netrc=X\t\tPath to .netrc file for authentication')
-    print(' -D X, --directory=X\tWorking data directory')
-    print(' --version\t\tVersion of the dataset to use')
-    print(' -B X, --bbox=X\t\tBounding box (lonmin,latmin,lonmax,latmax)')
-    print(' -P X, --polygon=X\tGeoreferenced file containing a set of polygons')
-    print(' -T X, --time=X\t\tTime range (comma-separated start and end)')
-    print(' -F X, --format=X\tOutput data format (TABULAR_ASCII, NetCDF4)')
-    print(' -M X, --mode=X\t\tPermission mode of files processed')
-    print(' -V, --verbose\t\tVerbose output of processing')
-    print(' -Z, --unzip\t\tUnzip dataset from NSIDC subsetting service\n')
-
 #-- Main program that calls nsidc_subset_altimetry()
-def main():
-    #-- Read the system arguments listed after the program
-    short_options = 'hU:N:D:B:P:T:F:M:VZ'
-    long_options = ['help','version=','bbox=','polygon=','time=','format=',
-        'user=','netrc=','directory=','mode=','verbose','unzip']
-    optlist,arglist = getopt.getopt(sys.argv[1:],short_options,long_options)
+def main(argv):
 
-    #-- command line parameters
-    VERSION = None
-    BBOX = None
-    POLYGON = None
-    TIME = None
-    FORMAT = None
-    USER = ''
-    NETRC = None
-    #-- working data directory
-    DIRECTORY = os.getcwd()
-    #-- permissions mode of the local directories and files (number in octal)
-    MODE = 0o775
-    VERBOSE = False
-    UNZIP = False
-    for opt, arg in optlist:
-        if opt in ("-h","--help"):
-            usage()
-            sys.exit()
-        elif opt in ("-U","--user"):
-            USER = arg
-        elif opt in ("-N","--netrc"):
-            NETRC = os.path.expanduser(arg)
-        elif opt in ("-D","--directory"):
-            DIRECTORY = os.path.expanduser(arg)
-        elif opt in ("--version"):
-            VERSION = arg
-        elif opt in ("-B","--bbox"):
-            BBOX = [float(i) for i in arg.split(',')]
-        elif opt in ("-P","--polygon"):
-            POLYGON = os.path.expanduser(arg)
-        elif opt in ("-T","--time"):
-            TIME = arg.split(',')
-        elif opt in ("-F","--format"):
-            FORMAT = arg
-        elif opt in ("-M","--mode"):
-            MODE = int(arg, 8)
-        elif opt in ("-V","--verbose"):
-            VERBOSE = True
-        elif opt in ("-Z","--unzip"):
-            UNZIP = True
+    #-- account for a bug in argparse that misinterprets negative arguments
+    #-- preserves backwards compatibility of argparse for prior python versions
+    for i, arg in enumerate(argv):
+        if (arg[0] == '-') and arg[1].isdigit(): argv[i] = ' ' + arg
 
     #-- Products for the NSIDC subsetter
     P = {}
@@ -386,43 +287,79 @@ def main():
     P['ATL10'] = 'Sea Ice Freeboard'
     P['ATL12'] = 'Ocean Surface Height'
     P['ATL13'] = 'Inland Water Surface Height'
-
-    #-- enter dataset to transfer as system argument
-    if not arglist:
-        for key,val in P.items():
-            print('{0}: {1}'.format(key, val))
-        raise Exception('No System Arguments Listed')
+    #-- Read the system arguments listed after the program
+    parser = argparse.ArgumentParser()
+    parser.add_argument('product',
+        metavar='PRODUCT', type=str, nargs='+', choices=P.keys(),
+        help='Altimetry Product')
+    parser.add_argument('--directory','-D',
+        type=lambda p: os.path.abspath(os.path.expanduser(p)),
+        default=os.getcwd(),
+        help='Working data directory')
+    parser.add_argument('--user','-U',
+        type=str, default='',
+        help='Username for NASA Earthdata Login')
+    parser.add_argument('--netrc','-N',
+        type=lambda p: os.path.abspath(os.path.expanduser(p)),
+        help='Path to .netrc file for authentication')
+    parser.add_argument('--version','-v',
+        type=str,
+        help='Version of the dataset to use')
+    parser.add_argument('--bbox','-B',
+        type=float, nargs=4, metavar=('lon_min','lat_min','lon_max','lat_max'),
+        help='Bounding box')
+    parser.add_argument('--polygon','-p',
+        type=os.path.expanduser,
+        help='Georeferenced file containing a set of polygons')
+    parser.add_argument('--time','-T',
+        type=str, nargs=2, metavar=('start_time','end_time'),
+        help='Time range')
+    parser.add_argument('--format','-F',
+        type=str, choices=('TABULAR_ASCII','NetCDF4'),
+        help='Convert to output data format')
+    parser.add_argument('--unzip','-Z',
+        default=False, action='store_true',
+        help='Unzip dataset from NSIDC subsetting service')
+    parser.add_argument('--verbose','-V',
+        default=False, action='store_true',
+        help='Verbose output of run')
+    parser.add_argument('--mode','-M',
+        type=lambda x: int(x,base=8), default=0o775,
+        help='Permissions mode of output files')
+    args = parser.parse_args()
 
     #-- NASA Earthdata hostname
-    HOST = 'urs.earthdata.nasa.gov'
+    URS = 'urs.earthdata.nasa.gov'
     #-- get authentication
-    if not USER and not NETRC:
+    if not args.user and not args.netrc:
         #-- check that NASA Earthdata credentials were entered
-        USER = builtins.input('Username for {0}: '.format(HOST))
+        args.user=builtins.input('Username for {0}: '.format(URS))
         #-- enter password securely from command-line
-        PASSWORD = getpass.getpass('Password for {0}@{1}: '.format(USER,HOST))
-    elif NETRC:
-        USER,LOGIN,PASSWORD = netrc.netrc(NETRC).authenticators(HOST)
+        PASSWORD=getpass.getpass('Password for {0}@{1}: '.format(args.user,URS))
+    elif args.netrc:
+        args.user,LOGIN,PASSWORD=netrc.netrc(args.netrc).authenticators(URS)
     else:
         #-- enter password securely from command-line
-        PASSWORD = getpass.getpass('Password for {0}@{1}: '.format(USER,HOST))
+        PASSWORD=getpass.getpass('Password for {0}@{1}: '.format(args.user,URS))
+    #-- build an opener for LP.DAAC
+    subsetting_tools.utilities.build_opener(args.user, PASSWORD,
+        authorization_header=False)
 
     #-- recursively create directory if presently non-existent
-    os.makedirs(DIRECTORY) if not os.access(DIRECTORY, os.F_OK) else None
+    if not os.access(args.directory, os.F_OK):
+        os.makedirs(args.directory, args.mode)
 
     #-- check internet connection before attempting to run program
-    if check_connection():
-        #-- check that each data product entered was correctly typed
-        keys = ','.join(sorted([key for key in P.keys()]))
-        for p in arglist:
-            if p not in P.keys():
-                raise IOError('Incorrect Data Product Entered ({0})'.format(p))
+    HOST = 'https://n5eil01u.ecs.nsidc.org/'
+    if subsetting_tools.utilities.check_connection(HOST):
+        #-- for each altimetry product
+        for p in args.product:
             #-- run program for product
-            nsidc_subset_altimetry(DIRECTORY, p, VERSION, USER=USER,
-                PASSWORD=PASSWORD, BBOX=BBOX, TIME=TIME, FORMAT=FORMAT,
-                POLYGON=POLYGON, MODE=MODE, VERBOSE=VERBOSE,
-                UNZIP=UNZIP)
+            nsidc_subset_altimetry(args.directory, p, args.version,
+                BBOX=args.bbox, POLYGON=args.polygon, TIME=args.time,
+                FORMAT=args.format, UNZIP=args.unzip, VERBOSE=args.verbose,
+                MODE=args.mode)
 
 #-- run main program
 if __name__ == '__main__':
-    main()
+    main(sys.argv)

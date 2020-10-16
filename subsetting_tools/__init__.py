@@ -1,3 +1,2 @@
-from subsetting_tools.read_shapefile import read_shapefile
-from subsetting_tools.read_kml_file import read_kml_file
-from subsetting_tools.read_geojson_file import read_geojson_file
+from subsetting_tools.polygon import polygon
+import subsetting_tools.utilities

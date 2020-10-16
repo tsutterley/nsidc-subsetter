@@ -1,0 +1,9 @@
+future
+fiona
+geopandas
+gdal
+lxml
+numpy
+pyproj
+python-dateutil
+shapely
