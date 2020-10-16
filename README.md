@@ -15,9 +15,9 @@ Register with NASA Earthdata Login system and add **NSIDC_DATAPOOL_OPS** to your
 
 ### Calling Sequence
 ```bash
-python nsidc_subset_altimetry.py -T 2009-01-01T00:00:00,2009-12-31T23:59:59 \
-	-B -50.33333,68.56667,-49.33333,69.56667 --version=034 -F NetCDF4 \
-	--user=<username> -V -Z GLAH12
+python nsidc_subset_altimetry.py --time 2009-01-01T00:00:00 2009-12-31T23:59:59 \
+	--bbox -50.33333 68.56667 -49.33333 69.56667 --version 034 -F NetCDF4 \
+	--user <username> -V -Z GLAH12
 ```
 
 #### Products
@@ -53,12 +53,10 @@ python nsidc_subset_altimetry.py -T 2009-01-01T00:00:00,2009-12-31T23:59:59 \
 #### Georeferenced File Readers  
 Can include a georeferenced file using the `--polygon` option.  
 Presently subsets to the convex hull of the internal polygons.  
- - `read_geojson_file.py`: Reads polygons from GeoJSON files  
- - `read_kml_file.py`: Reads polygons from keyhole markup language (.kml or .kmz) files  
- - `read_shapefile.py`: Reads polygons from ESRI shapefiles (can be zipped)  
+ - `polygon.py`: Reads polygons from GeoJSON, kml/kmz or ESRI shapefile files
 
 #### Dependencies
-- [numpy: Scientific Computing Tools For Python](http://www.numpy.org)  
+- [numpy: Scientific Computing Tools For Python](https://numpy.org)  
 - [gdal: Pythonic interface to the Geospatial Data Abstraction Library (GDAL)](https://pypi.python.org/pypi/GDAL)  
 - [shapely: PostGIS-ish operations outside a database context for Python](http://toblerity.org/shapely/index.html)  
 - [fiona: Python wrapper for vector data access functions from the OGR library](https://fiona.readthedocs.io/en/latest/manual.html)  
