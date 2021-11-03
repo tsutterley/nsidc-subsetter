@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 u"""
 nsidc_subset_altimetry.py
-Written by Tyler Sutterley (10/2020)
+Written by Tyler Sutterley (11/2021)
 
 Program to acquire subset altimetry datafiles from the NSIDC API:
 https://wiki.earthdata.nasa.gov/display/EL/How+To+Access+Data+With+Python
@@ -18,9 +18,9 @@ Add NSIDC_DATAPOOL_OPS to NASA Earthdata Applications
 https://urs.earthdata.nasa.gov/oauth/authorize?client_id=_JLuwMHxb2xX6NwYTb4dRA
 
 CALLING SEQUENCE:
-    python nsidc_subset_altimetry.py -T 2018-11-23T00:00:00,2018-11-23T23:59:59
-        -B -50.33333,68.56667,-49.33333,69.56667 --version=001 -F NetCDF4-CF
-        --user=<username> -V ATL03
+    python nsidc_subset_altimetry.py -T 2018-11-23T00:00:00 2018-11-23T23:59:59
+        -B -50.33333 68.56667 -49.33333 69.56667 --version 004
+        --user <username> -V ATL03
     where <username> is your NASA Earthdata username
 
 INPUTS:
@@ -43,32 +43,37 @@ COMMAND LINE OPTIONS:
     --help: list the command line options
     -D X, --directory X: working data directory
     -U X, --user X: username for NASA Earthdata Login
+    -P X, --password X: password for NASA Earthdata Login
     -N X, --netrc X: path to .netrc file for alternative authentication
     --version: version of the dataset to use
     -B X, --bbox X: Bounding box (lonmin,latmin,lonmax,latmax)
     -P X, --polygon X: Georeferenced file containing a set of polygons
     -T X, --time X: Time range (comma-separated start and end)
     -F X, --format X: Output data format (TABULAR_ASCII, NetCDF4)
+    -L, --list: Create an index file of CMR query granules
     -M X, --mode X: Local permissions mode of the files processed
     -V, --verbose: Verbose output of processing
     -Z, --unzip: Unzip dataset from NSIDC subsetting service
 
 PYTHON DEPENDENCIES:
-    lxml: Pythonic XML and HTML processing library using libxml2/libxslt
-        https://lxml.de/
-        https://github.com/lxml/lxml
     fiona: Python wrapper for vector data access functions from the OGR library
         https://fiona.readthedocs.io/en/latest/manual.html
     geopandas: Python tools for geographic data
         http://geopandas.readthedocs.io/
     shapely: PostGIS-ish operations outside a database context for Python
         http://toblerity.org/shapely/index.html
+    scikit-learn: Machine Learning in Python
+        http://scikit-learn.org/stable/index.html
+        https://github.com/scikit-learn/scikit-learn
 
 PROGRAM DEPENDENCIES:
     polygon.py: Reads polygons from GeoJSON, kml/kmz or ESRI shapefile files
     utilities.py: Download and management utilities for syncing files
 
 UPDATE HISTORY:
+    Updated 11/2021: use scrolling CMR queries to get the number of pages
+    Updated 04/2021: set a default netrc file and check access
+        default credentials from environmental variables
     Updated 10/2020: using argparse to set parameters from the command line
         use utilities to build https opener for CMR requests and NSIDC download
         use combined polygon module to read georeferenced files
@@ -87,30 +92,64 @@ import sys
 import os
 import io
 import re
+import json
+import math
 import time
 import netrc
 import shutil
 import getpass
+import logging
 import zipfile
 import builtins
 import argparse
 import posixpath
-import lxml.etree
-import shapely.geometry
 import dateutil.parser
 import subsetting_tools.polygon
 import subsetting_tools.utilities
 
+#-- PURPOSE: build string for version queries
+def build_version_query(version, desired_pad_length=3):
+    #-- check that the version is less than the required
+    if (len(str(version)) > desired_pad_length):
+        raise Exception('Version string too long: "{0}"'.format(version))
+    #-- Strip off any leading zeros
+    version = int(version)
+    query_params = ""
+    while (len(str(version)) <= desired_pad_length):
+        padded_version = str(version).zfill(desired_pad_length)
+        query_params += '&version={0}'.format(padded_version)
+        desired_pad_length -= 1
+    #-- return the query parameters
+    return query_params
+
+#-- PURPOSE: Select only the desired data files from CMR response
+def cmr_filter_json(search_page, form="application/x-hdfeos"):
+    #-- check that there are urls for request
+    urls = list()
+    if (('feed' not in search_page.keys()) or
+        ('entry' not in search_page['feed'].keys())):
+        return urls
+    #-- iterate over references and get cmr location
+    for entry in search_page['feed']['entry']:
+        #-- find url for format type
+        for i,link in enumerate(entry['links']):
+            if ('type' in link.keys()) and (link['type'] == form):
+                urls.append(entry['links'][i]['href'])
+    return urls
+
 #-- PURPOSE: program to acquire subsetted NSIDC data
 def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, BBOX=None, POLYGON=None,
-    TIME=None, FORMAT=None, VERBOSE=False, UNZIP=False, MODE=None):
+    TIME=None, FORMAT=None, VERBOSE=False, LIST=False, UNZIP=False, MODE=None):
 
-    #-- compile lxml xml parser
-    parser = lxml.etree.XMLParser(recover=True, remove_blank_text=True)
+    #-- create logger
+    loglevel = logging.INFO if VERBOSE else logging.CRITICAL
+    logging.basicConfig(level=loglevel)
 
     #-- product and version flags
     product_flag = '?short_name={0}'.format(PRODUCT)
-    version_flag = '&version={0}'.format(VERSION) if VERSION else ''
+    version_flag = build_version_query(VERSION) if VERSION else ''
+    #-- if changing the output format
+    format_flag = '&format={0}'.format(FORMAT) if FORMAT else ''
 
     #-- if using time start and end to temporally subset data
     if TIME:
@@ -126,12 +165,12 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, BBOX=None, POLYGON=None,
     #-- spatially subset data using bounding box or polygon file
     if BBOX:
         #-- if using a bounding box to spatially subset data
-        #-- min_lon,min_lat,max_lon,max_lat
+        #-- API expects: min_lon,min_lat,max_lon,max_lat
         bounds_flag = '&bounding_box={0:f},{1:f},{2:f},{3:f}'.format(*BBOX)
         spatial_flag = '&bbox={0:f},{1:f},{2:f},{3:f}'.format(*BBOX)
     elif POLYGON:
         #-- read shapefile or kml/kmz file
-        fileBasename,fileExtension = os.path.splitext(POLYGON)
+        _,fileExtension = os.path.splitext(POLYGON)
         #-- extract file name and subsetter indices lists
         match_object = re.match(r'(.*?)(\[(.*?)\])?$',POLYGON)
         f = os.path.expanduser(match_object.group(1))
@@ -141,21 +180,24 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, BBOX=None, POLYGON=None,
         if fileExtension in ('.shp','.zip'):
             #-- if reading a shapefile or a zipped directory with a shapefile
             ZIP = (fileExtension == '.zip')
-            mp=subsetting_tools.polygon().from_shapefile(f,variables=v,zip=ZIP)
+            mpoly=subsetting_tools.polygon().from_shapefile(f,variables=v,zip=ZIP)
         elif fileExtension in ('.kml','.kmz'):
             #-- if reading a keyhole markup language (can be compressed kmz)
             KMZ = (fileExtension == '.kmz')
-            mp=subsetting_tools.polygon().from_kml(f,variables=v,kmz=KMZ)
+            mpoly=subsetting_tools.polygon().from_kml(f,variables=v,kmz=KMZ)
         elif fileExtension in ('.json','.geojson'):
             #-- if reading a GeoJSON file
-            mp=subsetting_tools.polygon().from_geojson(f,variables=v)
+            mpoly=subsetting_tools.polygon().from_geojson(f,variables=v)
         else:
             raise IOError('Unlisted polygon type ({0})'.format(fileExtension))
         #-- calculate the bounds of the MultiPolygon object
-        bounds_flag = '&bounding_box={0:f},{1:f},{2:f},{3:f}'.format(*mp.bounds)
+        BBOX = mpoly.bounds()
+        bounds_flag = '&bounding_box={0:f},{1:f},{2:f},{3:f}'.format(*BBOX)
         #-- calculate the convex hull of the MultiPolygon object for subsetting
-        #-- the NSIDC api requires polygons to be in counter-clockwise order
-        X,Y = shapely.geometry.polygon.orient(mp.convex_hull,sign=1).exterior.xy
+        #-- the CMR api requires polygons to be in counter-clockwise order
+        qhull = mpoly.convex_hull()
+        #-- get exterior coordinates of complex hull
+        X,Y = qhull.xy()
         #-- coordinate order for polygon flag is lon1,lat1,lon2,lat2,...
         polygon_flag = ','.join(['{0:f},{1:f}'.format(x,y) for x,y in zip(X,Y)])
         spatial_flag = '&polygon={0}'.format(polygon_flag)
@@ -164,59 +206,56 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, BBOX=None, POLYGON=None,
         bounds_flag = ''
         spatial_flag = ''
 
-    #-- if changing the output format
-    format_flag = '&format={0}'.format(FORMAT) if FORMAT else ''
-
     #-- get dictionary of granules for temporal and spatial subset
-    HOST = posixpath.join('https://cmr.earthdata.nasa.gov','search','granules')
-    page_size,page_num = (10,1)
-    granules = {}
-    FLAG = True
-    #-- reduce to a set number of files per page and then iterate through pages
-    while FLAG:
-        #-- flags for page size and page number
+    HOST=posixpath.join('https://cmr.earthdata.nasa.gov','search','granules.json')
+    page_size = 100
+    request_mode = 'stream'
+    granules = []
+    cmr_scroll_id = None
+    while True:
+        #-- flags for page size
         size_flag = '&page_size={0:d}'.format(page_size)
-        num_flag = '&page_num={0:d}'.format(page_num)
         #-- url for page
-        remote_url = ''.join([HOST,product_flag,version_flag,bounds_flag,
-            temporal_flag,size_flag,num_flag])
-        #-- Create and submit request. There are a wide range of exceptions
-        #-- that can be thrown here, including HTTPError and URLError.
-        request=subsetting_tools.utilities.urllib2.Request(remote_url)
+        cmr_query_url = ''.join([HOST,product_flag,'&provider=NSIDC_ECS',
+            '&sort_key[]=start_date','&sort_key[]=producer_granule_id',
+            '&scroll=true',version_flag,bounds_flag,
+            temporal_flag,size_flag])
+        request = subsetting_tools.utilities.urllib2.Request(cmr_query_url)
+        if cmr_scroll_id:
+            request.add_header('cmr-scroll-id', cmr_scroll_id)
         response=subsetting_tools.utilities.urllib2.urlopen(request, timeout=20)
-        tree=lxml.etree.parse(response, parser)
-        root=tree.getroot()
-        #-- total number of hits for subset (not just on page)
-        hits = int(tree.find('hits').text)
-        #-- extract references on page
-        references = [i for i in tree.iter('reference',root.nsmap)]
-        #-- check flag
-        FLAG = bool(len(references))
-        for reference in references:
-            name = reference.find('name',root.nsmap).text
-            id = reference.find('id',root.nsmap).text
-            location = reference.find('location',root.nsmap).text
-            revision_id = reference.find('revision-id',root.nsmap).text
-            #-- read cmd location to get filename
-            request=subsetting_tools.utilities.urllib2.Request(location)
-            resp=subsetting_tools.utilities.urllib2.urlopen(request,timeout=20)
-            #-- parse cmd location url
-            tr = lxml.etree.parse(resp, parser)
-            f, = tr.xpath('.//DataGranule/ProducerGranuleId')
-            #-- create list of id, cmd location, revision and file
-            granules[name] = [id,location,revision_id,f.text]
-        #-- add to page number if valid page
-        page_num += 1 if FLAG else 0
+        if not cmr_scroll_id:
+            # Python 2 and 3 have different case for the http headers
+            headers = {k.lower(): v for k, v in dict(response.info()).items()}
+            cmr_scroll_id = headers['cmr-scroll-id']
+            hits = int(headers['cmr-hits'])
+        #-- parse the json response
+        search_page = json.loads(response.read())
+        url_scroll_results = cmr_filter_json(search_page)
+        if not url_scroll_results:
+            break
+        granules.extend(url_scroll_results)
+
+    #-- if creating a list of CMR query granules
+    if LIST:
+        fid = open(filepath,'index.txt','w')
+        for granule in granules:
+            print(posixpath.basename(granule),file=fid)
+        fid.close()
+
+    #-- number of orders needed for requests
+    page_num = math.ceil(len(granules)/page_size)
 
     #-- for each page of data
     for p in range(1,page_num):
         #-- flags for page size and page number
         size_flag = '&page_size={0:d}'.format(page_size)
         num_flag = '&page_num={0:d}'.format(p)
+        request_flag = '&request_mode={0}'.format(request_mode)
         #-- remote https server for page of NSIDC Data
         HOST = posixpath.join('https://n5eil02u.ecs.nsidc.org','egi','request')
         remote_url = ''.join([HOST,product_flag,version_flag,bounds_flag,
-            spatial_flag,time_flag,format_flag,size_flag,num_flag])
+            spatial_flag,time_flag,format_flag,size_flag,num_flag,request_flag])
 
         #-- local file
         today = time.strftime('%Y-%m-%dT%H-%M-%S',time.localtime())
@@ -231,21 +270,21 @@ def nsidc_subset_altimetry(filepath, PRODUCT, VERSION, BBOX=None, POLYGON=None,
             #-- use zipfile to extract contents from bytes
             remote_data = zipfile.ZipFile(fid)
             subdir = '{0}_{1}'.format(PRODUCT,today)
-            print('{0} -->\n'.format(remote_url)) if VERBOSE else None
+            logging.info('{0} -->\n'.format(remote_url))
             #-- extract each member and convert permissions to MODE
             for member in remote_data.filelist:
                 member.filename = os.path.basename(member.filename)
                 local_file = os.path.join(filepath,subdir,member.filename)
-                print('\t{0}\n'.format(local_file)) if VERBOSE else None
+                logging.info('\t{0}\n'.format(local_file))
                 remote_data.extract(member, path=os.path.join(filepath,subdir))
                 os.chmod(local_file, MODE)
             #-- close the zipfile object
             remote_data.close()
         else:
-            #-- Printing files transferred if VERBOSE
+            #-- Printing files transferred
             local_zip=os.path.join(filepath,'{0}_{1}.zip'.format(PRODUCT,today))
             args = (remote_url,local_zip)
-            print('{0} -->\n\t{1}\n'.format(*args)) if VERBOSE else None
+            logging.info('{0} -->\n\t{1}\n'.format(*args))
             #-- Create and submit request. There are a wide range of exceptions
             #-- that can be thrown here, including HTTPError and URLError.
             request = subsetting_tools.utilities.urllib2.Request(remote_url)
@@ -297,10 +336,14 @@ def main(argv):
         default=os.getcwd(),
         help='Working data directory')
     parser.add_argument('--user','-U',
-        type=str, default='',
+        type=str, default=os.environ.get('EARTHDATA_USERNAME'),
         help='Username for NASA Earthdata Login')
+    parser.add_argument('--password','-P',
+        type=str, default=os.environ.get('EARTHDATA_PASSWORD'),
+        help='Password for NASA Earthdata Login')
     parser.add_argument('--netrc','-N',
         type=lambda p: os.path.abspath(os.path.expanduser(p)),
+        default=os.path.join(os.path.expanduser('~'),'.netrc'),
         help='Path to .netrc file for authentication')
     parser.add_argument('--version','-v',
         type=str,
@@ -317,6 +360,9 @@ def main(argv):
     parser.add_argument('--format','-F',
         type=str, choices=('TABULAR_ASCII','NetCDF4'),
         help='Convert to output data format')
+    parser.add_argument('--list','-L',
+        default=False, action='store_true',
+        help='Create an index file of CMR query granules')
     parser.add_argument('--unzip','-Z',
         default=False, action='store_true',
         help='Unzip dataset from NSIDC subsetting service')
@@ -331,18 +377,18 @@ def main(argv):
     #-- NASA Earthdata hostname
     URS = 'urs.earthdata.nasa.gov'
     #-- get authentication
-    if not args.user and not args.netrc:
+    if not args.user and not os.access(args.netrc,os.F_OK):
         #-- check that NASA Earthdata credentials were entered
         args.user=builtins.input('Username for {0}: '.format(URS))
         #-- enter password securely from command-line
-        PASSWORD=getpass.getpass('Password for {0}@{1}: '.format(args.user,URS))
-    elif args.netrc:
-        args.user,LOGIN,PASSWORD=netrc.netrc(args.netrc).authenticators(URS)
+        args.password=getpass.getpass('Password for {0}@{1}: '.format(args.user,URS))
+    elif not args.user and os.access(args.netrc,os.F_OK):
+        args.user,_,args.password=netrc.netrc(args.netrc).authenticators(URS)
     else:
         #-- enter password securely from command-line
-        PASSWORD=getpass.getpass('Password for {0}@{1}: '.format(args.user,URS))
-    #-- build an opener for LP.DAAC
-    subsetting_tools.utilities.build_opener(args.user, PASSWORD,
+        args.password=getpass.getpass('Password for {0}@{1}: '.format(args.user,URS))
+    #-- build an opener for NSIDC
+    subsetting_tools.utilities.build_opener(args.user, args.password,
         authorization_header=False)
 
     #-- recursively create directory if presently non-existent
@@ -357,8 +403,8 @@ def main(argv):
             #-- run program for product
             nsidc_subset_altimetry(args.directory, p, args.version,
                 BBOX=args.bbox, POLYGON=args.polygon, TIME=args.time,
-                FORMAT=args.format, UNZIP=args.unzip, VERBOSE=args.verbose,
-                MODE=args.mode)
+                FORMAT=args.format, LIST=args.list, UNZIP=args.unzip,
+                VERBOSE=args.verbose, MODE=args.mode)
 
 #-- run main program
 if __name__ == '__main__':

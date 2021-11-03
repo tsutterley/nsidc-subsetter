@@ -31,7 +31,7 @@ if gdal_output[3]:
     install_requires[gdal_index] = 'gdal=={0}'.format(gdal_output[3])
 
 setup(
-    name='nsidc-subsetter',
+    name='subsetting_tools',
     version='1.0.0.9',
     description='Program for using the NSIDC subsetter api for retrieving NASA Operation IceBridge, ICESat and ICESat-2 data',
     url='https://github.com/tsutterley/nsidc-subsetter',

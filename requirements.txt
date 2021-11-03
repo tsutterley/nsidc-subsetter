@@ -2,8 +2,8 @@ future
 fiona
 geopandas
 gdal
-lxml
 numpy
 pyproj
 python-dateutil
+scikit-learn
 shapely
