@@ -1,9 +1,11 @@
-"""
+#!/usr/bin/env python
+u"""
 utilities.py
-Written by Tyler Sutterley (09/2020)
+Written by Tyler Sutterley (08/2021)
 Download and management utilities for syncing files
 
 UPDATE HISTORY:
+    Updated 08/2021: NSIDC no longer requires authentication headers
     Updated 09/2020: generalize build opener function for different instances
     Written 09/2020
 """
@@ -26,7 +28,9 @@ else:
 #-- PURPOSE: recursively split a url path
 def url_split(s):
     head, tail = posixpath.split(s)
-    if head in ('', posixpath.sep):
+    if head in ('http:','https:'):
+        return s,
+    elif head in ('', posixpath.sep):
         return tail,
     return url_split(head) + (tail,)
 
@@ -70,7 +74,7 @@ def check_connection(HOST):
 #-- PURPOSE: "login" to NASA Earthdata with supplied credentials
 def build_opener(username, password, context=ssl.SSLContext(),
     password_manager=True, get_ca_certs=False, redirect=False,
-    authorization_header=True, urs='https://urs.earthdata.nasa.gov'):
+    authorization_header=False, urs='https://urs.earthdata.nasa.gov'):
     """
     build urllib opener for NASA Earthdata with supplied credentials
 
@@ -120,3 +124,4 @@ def build_opener(username, password, context=ssl.SSLContext(),
     #-- All calls to urllib2.urlopen will now use handler
     #-- Make sure not to include the protocol in with the URL, or
     #-- HTTPPasswordMgrWithDefaultRealm will be confused.
+    return opener

@@ -6,4 +6,5 @@ lxml
 numpy
 pyproj
 python-dateutil
+scikit-learn
 shapely
