@@ -65,9 +65,9 @@ class polygon(object):
         Searches a directory for a filename without case dependence
         """
         self.filename = os.path.expanduser(filename)
-        #-- check if file presently exists with input case
+        # check if file presently exists with input case
         if not os.access(self.filename,os.F_OK):
-            #-- search for filename without case dependence
+            # search for filename without case dependence
             basename = os.path.basename(filename)
             directory = os.path.dirname(os.path.expanduser(filename))
             f = [f for f in os.listdir(directory) if re.match(basename,f,re.I)]
@@ -85,7 +85,7 @@ class polygon(object):
         # read the GeoJSON file
         gj = geopandas.read_file(self.filename)
 
-        #-- converting x,y from polygon projection to output EPSG
+        # converting x,y from polygon projection to output EPSG
         crs1 = pyproj.CRS.from_string(gj.crs['init'])
         crs2 = pyproj.CRS.from_string("epsg:{0:d}".format(self.epsg))
         transformer = pyproj.Transformer.from_crs(crs1, crs2, always_xy=True)
@@ -135,7 +135,7 @@ class polygon(object):
         else:
             kml = geopandas.read_file(self.filename)
 
-        #-- converting x,y from polygon projection to output EPSG
+        # converting x,y from polygon projection to output EPSG
         crs1 = pyproj.CRS.from_string(kml.crs['init'])
         crs2 = pyproj.CRS.from_string("epsg:{0:d}".format(self.epsg))
         transformer = pyproj.Transformer.from_crs(crs1, crs2, always_xy=True)
@@ -181,7 +181,7 @@ class polygon(object):
             # read the shapefile and extract entities
             shape = fiona.open(self.filename,'r')
 
-        #-- converting x,y from polygon projection to output EPSG
+        # converting x,y from polygon projection to output EPSG
         crs1 = pyproj.CRS.from_string(shape.crs['init'])
         crs2 = pyproj.CRS.from_string("epsg:{0:d}".format(self.epsg))
         transformer = pyproj.Transformer.from_crs(crs1, crs2, always_xy=True)
@@ -244,7 +244,7 @@ class polygon(object):
             log_lik = 0.5*(-nmax*(np.log(2.0 * np.pi) + 1.0 -
                 np.log(nmax) + np.log(wcss[i-1])))
             AIC[i-1] = -2.0*log_lik + 2.0*np.float64(i + 1)
-        #-- maximum number of clusters based on elbow method
+        # maximum number of clusters based on elbow method
         n_clusters = np.max(np.nonzero(AIC[1:] < AIC[0:-1]))
         kmeans = sklearn.cluster.KMeans(n_clusters=n_clusters,
             init='k-means++', random_state=5,  max_iter=400)
