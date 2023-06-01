@@ -9,7 +9,9 @@
 *.pyc
 *.m~
 *.m~~
-
+# Cython Files #
+################
+_*.c
 # Packages #
 ############
 *.7z
@@ -20,7 +22,12 @@
 *.rar
 *.tar
 *.zip
-
+# Data Files #
+##############
+*.nc
+*.h5
+*.hdf
+*.tif
 # Logs and databases #
 ######################
 *.log
@@ -31,7 +38,14 @@
 .RData
 .Rhistory
 __pycache__
-
+build/
+dist/
+develop-eggs/
+run/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 # OS generated files #
 ######################
 .DS_Store
@@ -41,9 +55,8 @@ __pycache__
 .Trashes
 ehthumbs.db
 Thumbs.db
-
 # LaTeX and Vim #
-######################
+#################
 *.aux
 *.bbl
 *.blg
@@ -73,7 +86,7 @@ Thumbs.db
 *.mtc0
 *.sw*
 *.hidden
-
+None*.png
 # Jupyter Checkpoints #
 #######################
 .ipynb_checkpoints
